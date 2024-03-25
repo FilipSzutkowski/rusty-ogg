@@ -1,4 +1,7 @@
-use gstreamer::{element_factory::ElementBuilder, prelude::*, ElementFactory, Pipeline};
+use gstreamer::{
+    element_factory::ElementBuilder, prelude::*, ClockTime, Element, ElementFactory, MessageView,
+    Pipeline, State,
+};
 static _FILE_PATH: &str = "media/italo_disco.ogg";
 
 fn main() {
@@ -6,6 +9,7 @@ fn main() {
 
     let pipeline = Pipeline::with_name("audio-player");
     let source = make_element("filesrc", "file-source")
+        .property_from_str("location", _FILE_PATH)
         .build()
         .expect("Could not build file source element");
     let demuxer = make_element("oggdemux", "ogg-demuxer")
@@ -20,6 +24,58 @@ fn main() {
     let sink = make_element("autoaudiosink", "audio-output")
         .build()
         .expect("Could not build file source element");
+
+    pipeline
+        .add_many([&source, &demuxer, &decoder, &conv, &sink])
+        .expect("Could not add elements to pipeline");
+
+    // file source -> ogg-demuxer
+    source
+        .link(&demuxer)
+        .expect("Could not link file source to demuxer");
+
+    // Decoder -> converter -> output
+    Element::link_many([&decoder, &conv, &sink])
+        .expect("Could not link decoder, converter and sink");
+
+    demuxer.connect_pad_added(move |_, pad| {
+        //
+        println!("Dynamic pad created. Linking demuxer/decoder");
+        let sink_pad = decoder
+            .static_pad("sink")
+            .expect("Could not get decoder's sink pad");
+
+        pad.link(&sink_pad)
+            .expect("Could not link demuxer's pad to decoder's sink");
+    });
+
+    pipeline
+        .set_state(State::Playing)
+        .expect("Could not start playing");
+
+    let bus = pipeline.bus().expect("Could not create bus");
+
+    println!("Running...");
+    // Wait for events from bus
+    for msg in bus.iter_timed(ClockTime::NONE) {
+        match msg.view() {
+            MessageView::Eos(_) => {
+                println!("End of stream, bye");
+                break;
+            }
+            MessageView::Error(err) => {
+                eprintln!("Error: {err}");
+                break;
+            }
+            _ => (),
+        }
+    }
+    // Out of waiting for events, finish up.
+
+    println!("Stopping playback");
+    pipeline
+        .set_state(State::Null)
+        .expect("Could not stop playback");
 }
 
 fn make_element<'a>(fact_name: &'a str, elm_name: &'a str) -> ElementBuilder<'a> {
