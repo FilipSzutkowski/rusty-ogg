@@ -1,15 +1,24 @@
+use std::env::args;
+
 use gstreamer::{
     element_factory::ElementBuilder, prelude::*, ClockTime, Element, ElementFactory, MessageView,
     Pipeline, State,
 };
-static _FILE_PATH: &str = "media/italo_disco.ogg";
 
 fn main() {
+    let mut args = args();
+
+    // Skip first argument
+    args.next();
+
+    let file_path = args.next().expect("No file path specified.");
+
+    println!("{file_path}");
     gstreamer::init().expect("Could not initialize GStreamer");
 
     let pipeline = Pipeline::with_name("audio-player");
     let source = make_element("filesrc", "file-source")
-        .property_from_str("location", _FILE_PATH)
+        .property_from_str("location", &file_path)
         .build()
         .expect("Could not build file source element");
     let demuxer = make_element("oggdemux", "ogg-demuxer")
