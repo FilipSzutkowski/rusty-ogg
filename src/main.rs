@@ -4,6 +4,7 @@ use gstreamer::{
     element_factory::ElementBuilder, prelude::*, ClockTime, Element, ElementFactory, MessageView,
     Pipeline, State,
 };
+use rusty_ogg::record_mic;
 
 fn main() {
     let mut args = args();
@@ -11,7 +12,14 @@ fn main() {
     // Skip first argument
     args.next();
 
-    let file_path = args.next().expect("No file path specified.");
+    let first_arg = args.next().expect("Run with 'record' as first argument for microphone recording, or specify a file path to playback an 'ogg' file.");
+
+    if first_arg == "record" {
+        record_mic();
+        return;
+    }
+
+    let file_path = first_arg;
 
     println!("{file_path}");
     gstreamer::init().expect("Could not initialize GStreamer");
